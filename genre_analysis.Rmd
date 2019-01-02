@@ -1,0 +1,132 @@
+---
+title: "R Notebook"
+output:
+  html_notebook
+---
+
+```{r, message=FALSE, results="hide"}
+# install.packages("packrat")
+# install.packages("pacman")
+# install.packages("devtools")
+# install.packages("tidyverse")
+# devtools::install_github("rstudio/gt")
+library(gt)
+pacman::p_load("tidyverse")
+pacman::p_load("data.table")
+pacman::p_load("jsonlite")
+```
+
+## Read and clean the Data
+```{r read_clean_data}
+metadata <- fread("data/movies_metadata.csv", select=c('adult', 'genres', 'release_date', 'original_language', 'original_title', 'id', 'imdb_id'), fill=T)
+metadata <- metadata[!is.na(as.integer(id)) & (original_language == 'en') & (adult == "False"), ]
+metadata[, id := as.integer(id)]
+metadata[, genre := gsub("\'","\"", metadata$genre)]
+metadata[, c('original_language', 'adult') := NULL]
+```
+
+## Parse Genre
+```{r parse_genre}
+genres <- metadata[, unlist(lapply(genre, fromJSON), recursive=F)['name'], by=id]
+sorted.genres <- genres[, .N, by=name][order(-N)]
+sorted.genres[1:20]
+```
+
+```{r}
+genres[, dummy := 1]
+# Only use the first 3 assigned genres 
+encoded.genres <- dcast(na.omit(genres[,.SD[1:3], by=id])[name %in% sorted.genres[1:6, name]], 
+                        id ~  name, value.var='dummy', fill=0)
+data.w.genre <- merge(encoded.genres,
+      metadata[, .(id, original_title, imdb_id, release_date)], 
+      all.x=T, by="id")
+```
+
+## Count Statistics
+```{r}
+i <- 0
+tmp.raw <- list() 
+tmp.ratio <- list()
+for(name in sorted.genres[1:6, name]){
+    i <- i + 1
+    dt.tmp <- data.w.genre[get(name) == 1, lapply(.SD, sum), .SDcols=sorted.genres[1:6, name]]
+    tmp.ratio[[i]] <- copy(dt.tmp)
+    dt.tmp[, genre := name]
+    tmp.raw[[i]] <- dt.tmp
+    tmp.ratio[[i]] <- tmp.ratio[[i]] / dt.tmp[, get(name)]
+    tmp.ratio[[i]][, genre := name]
+}
+genre.stats <- merge(rbindlist(tmp.raw), rbindlist(tmp.ratio), by="genre", suffixes=c("", ".ratio"), sort=F)
+rm(tmp.raw, tmp.ratio, i)
+```
+
+https://www.kaggle.com/rounakbanik/the-movies-dataset
+
+```{r}
+gt_tbl <- gt(data = genre.stats, rowname_col = "genre")
+gt_tbl %>%
+  tab_header(
+    title = "Movie Metadata Stats"
+  ) %>%
+  tab_spanner(
+    label = "Genre Overlappings",
+    columns = vars(Drama, Comedy, Thriller, Romance, Action, Horror)
+  ) %>%
+  tab_spanner(
+    label = "Genre Overlappings(%)",
+    columns = vars(Drama.ratio, Comedy.ratio, Thriller.ratio, Romance.ratio, Action.ratio, Horror.ratio)
+  ) %>%
+  fmt_percent(
+    columns = vars(Drama.ratio, Comedy.ratio, Thriller.ratio, Romance.ratio, Action.ratio, Horror.ratio),
+    decimals = 1,
+    drop_trailing_zeros = F
+  ) %>%   
+  tab_source_note(
+    source_note = md("Source:  [\"The Movie Dataset\"](rounakbanik/the-movies-dataset) on Kaggle")
+  ) %>%
+  cols_label(
+    Drama.ratio = "Drama",
+    Comedy.ratio = "Comedy",
+    Thriller.ratio = "Thriller",
+    Romance.ratio = "Romance", 
+    Action.ratio = "Action", 
+    Horror.ratio = "Horror"
+  ) %>%   
+  tab_stubhead_label(label = "Genre") %>%
+  tab_style(
+    style = cells_styles(
+      text_size = px(12)),
+    locations = list(
+        cells_column_labels(columns = 1:12), 
+        cells_stub(),
+        cells_data()
+    )) %>%   
+  tab_style(
+    style = cells_styles(
+      text_decorate = "underline",
+      text_weight = "bold"),
+    locations = list(
+        cells_data(columns=c(1), rows=c(1)),
+        cells_data(columns=c(2), rows=c(2)),
+        cells_data(columns=c(3), rows=c(3)),
+        cells_data(columns=c(4), rows=c(4)),
+        cells_data(columns=c(5), rows=c(5)),
+        cells_data(columns=c(6), rows=c(6))
+    )) %>%   
+  tab_style(
+    style = cells_styles(
+      text_color="lightgrey"),
+    locations = list(
+        cells_data(columns=c(7), rows=c(1)),
+        cells_data(columns=c(8), rows=c(2)),
+        cells_data(columns=c(9), rows=c(3)),
+        cells_data(columns=c(10), rows=c(4)),
+        cells_data(columns=c(11), rows=c(5)),
+        cells_data(columns=c(12), rows=c(6))
+    ))
+```
+
+## Acknowledgements
+
+* Erik Bruin's Kaggle notebook ["Movie recommendation systems based on TMDB"](https://www.kaggle.com/erikbruin/movie-recommendation-systems-based-on-tmdb) has been a great source of ideas r.t. manipulating this dataset using R.
+
