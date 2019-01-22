@@ -4,6 +4,8 @@ output:
   html_notebook
 ---
 
+Dataset Source: [The Movies Dataset on Kaggle](https://www.kaggle.com/rounakbanik/the-movies-dataset).
+
 ```{r, message=FALSE, results="hide"}
 # install.packages("packrat")
 # install.packages("pacman")
@@ -16,8 +18,8 @@ pacman::p_load("data.table")
 pacman::p_load("jsonlite")
 ```
 
-## Read and clean the Data
-```{r read_clean_data}
+## Read and clean the Metadata
+```{r read_clean_metadata}
 metadata <- fread("data/movies_metadata.csv", select=c('adult', 'genres', 'release_date', 'original_language', 'original_title', 'id', 'imdb_id'), fill=T)
 metadata <- metadata[!is.na(as.integer(id)) & (original_language == 'en') & (adult == "False"), ]
 metadata[, id := as.integer(id)]
@@ -42,7 +44,7 @@ data.w.genre <- merge(encoded.genres,
       all.x=T, by="id")
 ```
 
-## Count Statistics
+## Genre Statistics
 ```{r}
 i <- 0
 tmp.raw <- list() 
@@ -60,7 +62,6 @@ genre.stats <- merge(rbindlist(tmp.raw), rbindlist(tmp.ratio), by="genre", suffi
 rm(tmp.raw, tmp.ratio, i)
 ```
 
-https://www.kaggle.com/rounakbanik/the-movies-dataset
 
 ```{r}
 gt_tbl <- gt(data = genre.stats, rowname_col = "genre")
@@ -123,6 +124,82 @@ gt_tbl %>%
         cells_data(columns=c(10), rows=c(4)),
         cells_data(columns=c(11), rows=c(5)),
         cells_data(columns=c(12), rows=c(6))
+    ))
+```
+
+## Reading Ratings
+```{r, read_ratings}
+ratings <- fread("data/ratings.csv", select=c('movieId', 'rating'))
+ratings.stats <- ratings[, .(n_ratings=.N, avg_rating=mean(rating)), by=movieId]
+rm(ratings)
+head(ratings.stats)
+```
+
+```{r}
+data.w.genre.ratings <- merge(data.w.genre, ratings.stats, by.y="movieId", by.x="id")
+# Only keep moives with >= 500 ratings
+data.w.genre.ratings <- data.w.genre.ratings[n_ratings >= 500]
+head(data.w.genre.ratings)
+```
+
+## Rating statistics by Genre
+
+```{r}
+rating.by.genre <- melt(
+    data.w.genre.ratings, id=c("id", "avg_rating", "n_ratings"), measure.vars=c("Action", "Comedy", "Drama", "Horror", "Romance", "Thriller"), variable.name="genre"
+    )[value==1][
+    , .(n_movies=.N, min_rating=min(avg_rating), avg_rating=mean(avg_rating), med_rating=median(avg_rating), max_rating=max(avg_rating), sd_rating=sd(avg_rating), n_ratings=sum(n_ratings), avg_n_ratings=mean(n_ratings), max_n_ratings=max(n_ratings), min_n_ratings=min(n_ratings)), by=genre]
+head(rating.by.genre)
+```
+
+```{r}
+gt_tbl <- gt(data = rating.by.genre, rowname_col = "genre")
+gt_tbl %>%
+  tab_header(
+    title = "Movie Average Ratings by Genre",
+    subtitle = "with # of Ratings >= 500"
+  ) %>%
+  tab_spanner(
+    label = "Average Rating (1-5)",
+    columns = vars(min_rating, avg_rating, med_rating, max_rating, sd_rating)
+  ) %>%
+  fmt_number(
+    columns = vars(min_rating, avg_rating, med_rating, max_rating, sd_rating),
+    decimals = 2,
+    drop_trailing_zeros = F
+  ) %>%       
+  tab_spanner(
+    label = "# of Ratings",
+    columns = vars(n_ratings, min_n_ratings, avg_n_ratings, max_n_ratings)
+  ) %>%
+  fmt_number(
+    columns = vars(n_ratings, min_n_ratings, avg_n_ratings, max_n_ratings),
+    decimals = 0,
+    drop_trailing_zeros = F
+  ) %>%    
+  tab_source_note(
+    source_note = md("Source:  [\"The Movie Dataset\"](rounakbanik/the-movies-dataset) on Kaggle")
+  ) %>%
+  cols_label(
+    min_rating = "Min", 
+    avg_rating = "Avg", 
+    med_rating = "Med",
+    max_rating = "Max",
+    n_ratings = "Total", 
+    min_n_ratings = "Min", 
+    avg_n_ratings = "Avg",
+    max_n_ratings = "Max",
+    n_movies="Movies",
+    sd_rating="Stdev"
+  ) %>%   
+  tab_stubhead_label(label = "Genre") %>%
+  tab_style(
+    style = cells_styles(
+      text_size = px(12)),
+    locations = list(
+        cells_column_labels(columns = 1:12), 
+        cells_stub(),
+        cells_data()
     ))
 ```
 
