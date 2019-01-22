@@ -1,8 +1,10 @@
 ---
-title: "R Notebook"
+title: "Movie Genre Overlappings, Ratings by Genre and Year"
 output:
   html_notebook
 ---
+
+# Exploring the Moives Dataset with rstudio/gt package
 
 Dataset Source: [The Movies Dataset on Kaggle](https://www.kaggle.com/rounakbanik/the-movies-dataset).
 
@@ -16,6 +18,7 @@ library(gt)
 pacman::p_load("tidyverse")
 pacman::p_load("data.table")
 pacman::p_load("jsonlite")
+pacman::p_load("lubridate")
 ```
 
 ## Read and clean the Metadata
@@ -195,7 +198,100 @@ gt_tbl %>%
   tab_stubhead_label(label = "Genre") %>%
   tab_style(
     style = cells_styles(
-      text_size = px(12)),
+      text_size = px(14)),
+    locations = list(
+        cells_column_labels(columns = 1:10), 
+        cells_stub(),
+        cells_data()
+    ))
+```
+
+## Rating statistics by Genre and Year
+
+```{r}
+data.w.genre.ratings[,release_year:=year(ymd(release_date))]
+ggplot(data.w.genre.ratings[release_year >= 1950][order(release_year),.N, by=release_year], aes(x=release_year, y=N)) + 
+    geom_bar(stat="identity") + ggtitle("# of Movie by Year") + theme_bw() + scale_x_continuous(breaks=seq(1950, 2020, 10))
+```
+
+```{r}
+data.w.genre.ratings <- data.w.genre.ratings[(release_year >= 1980) & (release_year < 2010)]
+data.w.genre.ratings[, release_decade := (release_year %/% 10) * 10 ]
+```
+
+
+```{r}
+rating.by.genre.year <- melt(
+    data.w.genre.ratings, id=c("id", "avg_rating", "n_ratings", "release_decade"), measure.vars=c("Action", "Comedy", "Drama", "Horror", "Romance", "Thriller"), variable.name="genre"
+    )[value==1][
+    , .(n_movies=.N, min_rating=min(avg_rating), avg_rating=mean(avg_rating), med_rating=median(avg_rating), max_rating=max(avg_rating), sd_rating=sd(avg_rating), n_ratings=sum(n_ratings), avg_n_ratings=mean(n_ratings), max_n_ratings=max(n_ratings), min_n_ratings=min(n_ratings)), by=.(genre, release_decade)]
+head(rating.by.genre.year)
+```
+
+```{r}
+gt_tbl <- gt(
+    data = dcast(rating.by.genre.year, genre ~ release_decade, value.var = c("avg_rating", "sd_rating", "avg_n_ratings", "n_movies"))[, .(genre,
+        n_movies_1980, avg_rating_1980, sd_rating_1980, avg_n_ratings_1980, 
+        n_movies_1990, avg_rating_1990, sd_rating_1990, avg_n_ratings_1990,
+        n_movies_2000, avg_rating_2000, sd_rating_2000, avg_n_ratings_2000
+    )], 
+    rowname_col = "genre")
+gt_tbl %>%
+  tab_header(
+    title = "Movie Average Ratings by Genre & Year",
+    subtitle = "with # of Ratings >= 500"
+  ) %>%
+  tab_spanner(
+    label = "1980s",
+    columns = vars(n_movies_1980, avg_rating_1980, sd_rating_1980, avg_n_ratings_1980)
+  ) %>%
+  tab_spanner(
+    label = "1990s",
+    columns = vars(n_movies_1990, avg_rating_1990, sd_rating_1990, avg_n_ratings_1990)
+  ) %>%
+  tab_spanner(
+    label = "2000s",
+    columns = vars(n_movies_2000, avg_rating_2000, sd_rating_2000, avg_n_ratings_2000)
+  ) %>%
+  fmt_number(
+    columns = vars(avg_rating_1980, sd_rating_1980, avg_rating_1990, sd_rating_1990, avg_rating_2000, sd_rating_2000),
+    decimals = 2,
+    drop_trailing_zeros = F
+  ) %>%       
+  fmt_number(
+    columns = vars(avg_n_ratings_1980, avg_n_ratings_1990, avg_n_ratings_2000, n_movies_1980, n_movies_1990, n_movies_2000),
+    decimals = 0,
+    drop_trailing_zeros = F
+  ) %>%    
+  tab_source_note(
+    source_note = md("Source:  [\"The Movie Dataset\"](rounakbanik/the-movies-dataset) on Kaggle")
+  ) %>%
+  tab_footnote(
+    footnote = "#: Number of movies",
+    cells_column_labels(columns = c(1, 5, 9))
+  ) %>%
+  tab_footnote(
+    footnote = "Avg #: Average number of ratings.",
+    cells_column_labels(columns = c(4, 8, 12))
+  ) %>%    
+  cols_label(
+    n_movies_1980 = "#",
+    n_movies_1990 = "#",
+    n_movies_2000 = "#",
+    avg_rating_1980 = "Avg", 
+    avg_rating_1990 = "Avg", 
+    avg_rating_2000 = "Avg", 
+    sd_rating_1980 = "Stdev", 
+    sd_rating_1990 = "Stdev",
+    sd_rating_2000 = "Stdev",
+    avg_n_ratings_1980 = "Avg #", 
+    avg_n_ratings_1990 = "Avg #", 
+    avg_n_ratings_2000 = "Avg #"
+  ) %>%   
+  tab_stubhead_label(label = "Genre") %>%
+  tab_style(
+    style = cells_styles(
+      text_size = px(14)),
     locations = list(
         cells_column_labels(columns = 1:12), 
         cells_stub(),
