@@ -61,11 +61,11 @@ Assuming genres are assigned in order of representativeness, taking at most thre
 ```{r}
 # Dummy variable for the later dcast operation
 genres[, dummy := 1]
-# Only use the first 3 assigned genres 
-encoded.genres <- dcast(na.omit(genres[,.SD[1:3], by=id])[name %in% sorted.genres[1:6, name]], 
+# Only use the first 3 assigned genres
+encoded.genres <- dcast(na.omit(genres[,.SD[1:3], by=id])[name %in% sorted.genres[1:6, name]],
                         id ~  name, value.var='dummy', fill=0)
 data.w.genre <- merge(encoded.genres,
-      metadata[, .(id, original_title, release_date)], 
+      metadata[, .(id, original_title, release_date)],
       all.x=T, by="id")
 ```
 
@@ -75,7 +75,7 @@ Here I used a for loop to collect and calculate statstics genre by genre. I late
 
 ```{r}
 i <- 0
-tmp.raw <- list() 
+tmp.raw <- list()
 tmp.ratio <- list()
 for(name in sorted.genres[1:6, name]){
     i <- i + 1
@@ -110,7 +110,7 @@ gt_tbl %>%
     columns = vars(Drama.ratio, Comedy.ratio, Thriller.ratio, Romance.ratio, Action.ratio, Horror.ratio),
     decimals = 1,
     drop_trailing_zeros = F
-  ) %>%   
+  ) %>%
   tab_source_note(
     source_note = md("Source:  [\"The Movie Dataset\"](rounakbanik/the-movies-dataset) on Kaggle")
   ) %>%
@@ -118,19 +118,19 @@ gt_tbl %>%
     Drama.ratio = "Drama",
     Comedy.ratio = "Comedy",
     Thriller.ratio = "Thriller",
-    Romance.ratio = "Romance", 
-    Action.ratio = "Action", 
+    Romance.ratio = "Romance",
+    Action.ratio = "Action",
     Horror.ratio = "Horror"
-  ) %>%   
+  ) %>%
   tab_stubhead_label(label = "Genre") %>%
   tab_style(
     style = cells_styles(
       text_size = px(12)),
     locations = list(
-        cells_column_labels(columns = 1:12), 
+        cells_column_labels(columns = 1:12),
         cells_stub(),
         cells_data()
-    )) %>%   
+    )) %>%
   tab_style(
     style = cells_styles(
       text_decorate = "underline",
@@ -142,7 +142,7 @@ gt_tbl %>%
         cells_data(columns=c(4), rows=c(4)),
         cells_data(columns=c(5), rows=c(5)),
         cells_data(columns=c(6), rows=c(6))
-    )) %>%   
+    )) %>%
   tab_style(
     style = cells_styles(
       text_color="lightgrey"),
@@ -172,7 +172,7 @@ rm(ratings)
 head(ratings.stats)
 ```
 
-Here we remove move with less than 500 ratings.
+Here we remove movies with less than 500 ratings.
 
 ```{r}
 data.w.genre.ratings <- merge(data.w.genre, ratings.stats, by.y="movieId", by.x="id")
@@ -210,7 +210,7 @@ gt_tbl %>%
     columns = vars(min_rating, avg_rating, med_rating, max_rating, sd_rating),
     decimals = 2,
     drop_trailing_zeros = F
-  ) %>%       
+  ) %>%
   tab_spanner(
     label = "# of Ratings",
     columns = vars(n_ratings, min_n_ratings, avg_n_ratings, max_n_ratings)
@@ -219,28 +219,28 @@ gt_tbl %>%
     columns = vars(n_ratings, min_n_ratings, avg_n_ratings, max_n_ratings),
     decimals = 0,
     drop_trailing_zeros = F
-  ) %>%    
+  ) %>%
   tab_source_note(
     source_note = md("Source:  [\"The Movie Dataset\"](rounakbanik/the-movies-dataset) on Kaggle")
   ) %>%
   cols_label(
-    min_rating = "Min", 
-    avg_rating = "Avg", 
+    min_rating = "Min",
+    avg_rating = "Avg",
     med_rating = "Med",
     max_rating = "Max",
-    n_ratings = "Total", 
-    min_n_ratings = "Min", 
+    n_ratings = "Total",
+    min_n_ratings = "Min",
     avg_n_ratings = "Avg",
     max_n_ratings = "Max",
     n_movies="Movies",
     sd_rating="Stdev"
-  ) %>%   
+  ) %>%
   tab_stubhead_label(label = "Genre") %>%
   tab_style(
     style = cells_styles(
       text_size = px(14)),
     locations = list(
-        cells_column_labels(columns = 1:10), 
+        cells_column_labels(columns = 1:10),
         cells_stub(),
         cells_data()
     ))
@@ -251,11 +251,11 @@ Suprisingly, the distribution of ratings are quite similar across all genres. Ma
 
 ## Rating statistics by Genre and Year
 
-We'd also like to know if the distributions of ratings change over time. First we plot the histogram of the years in which the movies were released. This is a case where a histogram is far more readable than a table. 
+We'd also like to know if the distributions of ratings change over time. First we plot the histogram of the years in which the movies were released. This is a case where a histogram is far more readable than a table.
 
 ```{r}
 data.w.genre.ratings[,release_year:=year(ymd(release_date))]
-ggplot(data.w.genre.ratings[release_year >= 1950][order(release_year),.N, by=release_year], aes(x=release_year, y=N)) + 
+ggplot(data.w.genre.ratings[release_year >= 1950][order(release_year),.N, by=release_year], aes(x=release_year, y=N)) +
     geom_bar(stat="identity") + ggtitle("# of Movie by Year") + theme_bw() + scale_x_continuous(breaks=seq(1950, 2020, 10))
 ```
 
@@ -280,10 +280,10 @@ Even more manual labeling and a *dcast* call to handle the extra *decade* dimens
 ```{r}
 gt_tbl <- gt(
     data = dcast(rating.by.genre.year, genre ~ release_decade, value.var = c("avg_rating", "sd_rating", "avg_n_ratings", "n_movies"))[, .(genre,
-        n_movies_1980, avg_rating_1980, sd_rating_1980, avg_n_ratings_1980, 
+        n_movies_1980, avg_rating_1980, sd_rating_1980, avg_n_ratings_1980,
         n_movies_1990, avg_rating_1990, sd_rating_1990, avg_n_ratings_1990,
         n_movies_2000, avg_rating_2000, sd_rating_2000, avg_n_ratings_2000
-    )], 
+    )],
     rowname_col = "genre")
 gt_tbl %>%
   tab_header(
@@ -306,12 +306,12 @@ gt_tbl %>%
     columns = vars(avg_rating_1980, sd_rating_1980, avg_rating_1990, sd_rating_1990, avg_rating_2000, sd_rating_2000),
     decimals = 2,
     drop_trailing_zeros = F
-  ) %>%       
+  ) %>%
   fmt_number(
     columns = vars(avg_n_ratings_1980, avg_n_ratings_1990, avg_n_ratings_2000, n_movies_1980, n_movies_1990, n_movies_2000),
     decimals = 0,
     drop_trailing_zeros = F
-  ) %>%    
+  ) %>%
   tab_source_note(
     source_note = md("Source:  [\"The Movie Dataset\"](rounakbanik/the-movies-dataset) on Kaggle")
   ) %>%
@@ -322,27 +322,27 @@ gt_tbl %>%
   tab_footnote(
     footnote = "Avg #: Average number of ratings.",
     cells_column_labels(columns = c(4, 8, 12))
-  ) %>%    
+  ) %>%
   cols_label(
     n_movies_1980 = "#",
     n_movies_1990 = "#",
     n_movies_2000 = "#",
-    avg_rating_1980 = "Avg", 
-    avg_rating_1990 = "Avg", 
-    avg_rating_2000 = "Avg", 
-    sd_rating_1980 = "Stdev", 
+    avg_rating_1980 = "Avg",
+    avg_rating_1990 = "Avg",
+    avg_rating_2000 = "Avg",
+    sd_rating_1980 = "Stdev",
     sd_rating_1990 = "Stdev",
     sd_rating_2000 = "Stdev",
-    avg_n_ratings_1980 = "Avg #", 
-    avg_n_ratings_1990 = "Avg #", 
+    avg_n_ratings_1980 = "Avg #",
+    avg_n_ratings_1990 = "Avg #",
     avg_n_ratings_2000 = "Avg #"
-  ) %>%   
+  ) %>%
   tab_stubhead_label(label = "Genre") %>%
   tab_style(
     style = cells_styles(
       text_size = px(14)),
     locations = list(
-        cells_column_labels(columns = 1:12), 
+        cells_column_labels(columns = 1:12),
         cells_stub(),
         cells_data()
     ))
